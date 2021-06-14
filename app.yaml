@@ -1,0 +1,252 @@
+%YAML 1.1
+---
+gfVersion: v2.0
+class: app
+
+###############################################################################
+##### Metadata #####
+###############################################################################
+
+# App metadata contains name, description, and source; populates the GeneFlow
+# definition
+
+# name: standard GeneFlow app name
+name: stringtie-gf2
+# description: short description for the app
+description: StringTie App
+# repo_uri: link to the app's git repo
+git: 'https://gitlab.com/geneflow/apps/stringtie-gf2.git'
+# version: must be incremented every time this file, or any file in the app 
+# project is modified
+version: '2.1.6-01'
+
+
+
+###############################################################################
+##### Inputs and Parameters #####
+###############################################################################
+
+# Each app input and parameter item is defined in a subsection with the same
+# name as the input/parameter, and each subsection must have the following
+# fields:
+#
+# 1. label: Short description of the field
+# 2. description: Long description of the field
+# 3. type: Data type of the field. For input fields, values can be: File, 
+#    Directory, or Any. For parameter fields, values can be: File, Directory,
+#    Any, string, int, float, double, or long.
+# 4. required: Specifies if the input/parameter is required. 
+# 5. default: Specifies the default value of the field. 
+#
+#    *Note: The following rules apply when handling "required" and "default"
+#    fields: 
+#    1. If required == true, default value is ignored
+#    2. If required == false, and default is specified, the input/parameter is
+#       set to the default value in the wrapper script before arg parsing and
+#       allowed to be over-written by any args passed to the wrapper script. 
+#    3. If required == false, and default is NOT specified, the input/parameter
+#       is only set if corresponding args are passed to the wrapper script.
+#
+# 6. test_value: (Optional) If specified, used as the value for this input/
+#    parameter when generating the test script. 
+# 7. post_exec: (Optional) List of shell/bash commands used for post processing
+#    of the input/parameter value after argument parsing. Use these commands to
+#    modify or check the value of inputs/parameters; or create additional
+#    shell/bash variables for use in later parts of the script. By default, the
+#    following commands are included in the wrapper script before any items
+#    listed in post_exec. If the name of the input/parameter is "varname", then
+#    the following lines are added to the wrapper script:
+#
+#    VARNAME_FULL=$(readlink -f ${VARNAME})
+#    VARNAME_DIR=$(dirname ${VARNAME_FULL})
+#    VARNAME_BASE=$(basename ${VARNAME_FULL})
+#
+#    See the section "Execution Blocks" for information about the required
+#    format for execution blocks.
+inputs:
+  bam:
+    label: Input BAM File
+    description: Input BAM file
+    type: File
+    required: true
+    test_value: ${SCRIPT_DIR}/data/sample.bam
+
+  gtf:
+    label: Input GTF File
+    description: Input GTF file
+    type: File
+    required: true
+    test_value: ${SCRIPT_DIR}/data/sample.gtf
+
+parameters:
+  output: 
+    label: Output Directory
+    description: Output directory
+    type: Directory
+    required: true
+    test_value: output
+
+
+
+###############################################################################
+##### App Execution Methods #####
+###############################################################################
+
+# List of optional commands executed before any method-specific execution
+# commands. These are environment preparation commands. Each pre_exec item
+# is an execution block, as defined in the "Execution Blocks" section at the
+# end of this document.
+pre_exec:
+- run: mkdir -p ${OUTPUT_FULL}
+- run: mkdir -p ${LOG_FULL}
+
+# Supported execution methods are listed here in priority order. Each execution
+# method requires the following fields: 
+#
+# 1. name: Name of the execution method.
+# 2. if: A conditional block that must be satisfied for the execution method.
+#    If the condition is not satisified, the condition for the subsequent
+#    execution method is tested. If no execution method conditions are
+#    satisified, the script exits with an error code. See the section
+#    "Conditional Blocks" for more information.
+# 3. exec: A list of exeuction blocks to be executed for the execution method.
+#    See the section "Execution Blocks" for more information. 
+exec_methods:
+- name: docker
+  if:
+  - in_path: docker
+  exec:
+  - type: docker
+    image: quay.io/biocontainers/stringtie:2.1.6--h978d192_0
+    run: stringtie
+    args:
+    - flag: -G
+      mount: ${GTF}
+    - flag: --rf
+    - flag: -e
+    - flag: -B
+    - flag: -o
+      mount: ${OUTPUT}
+      value: ${OUTPUT_BASE}/${OUTPUT_BASE}_final_transcript.gtf
+    - flag: -A
+      mount: ${OUTPUT}
+      value: ${OUTPUT_BASE}/${OUTPUT_BASE}.tsv
+    - flag: -C
+      mount: ${OUTPUT}
+      value: ${OUTPUT_BASE}/${OUTPUT_BASE}_final_reference.gtf
+    - mount: ${BAM}
+    stdout: ${LOG_FULL}/${OUTPUT_BASE}-stringtie.stdout
+    stderr: ${LOG_FULL}/${OUTPUT_BASE}-stringtie.stderr
+
+# List of optional commands executed after any method-specific execution
+# commands. These are environment cleanup commands. Each post_exec item
+# is an execution block, as defined in the "Execution Blocks" section at the
+# end of this document.
+post_exec:
+
+
+
+###############################################################################
+##### Additional Documentation #####
+###############################################################################
+#
+#
+### Execution Blocks ###
+#
+# Execution blocks occur in input/parameter post processing sections (i.e.,
+# post_exec), as well as app pre (i.e., pre_exec), post (i.e., post_exec), and
+# method-specific (i.e., exec_methods.exec) execution sections. Regardless of
+# the location, all execution blocks are similarly formatted. Each of these
+# sections is an array, with each array item defined with the following fields:
+#
+# 1. if: (Optional) Condition that must be satisfied for the item to be
+#    executed. See the section "Conditional Blocks" for more information.
+# 2. pipe: (Optional) If included, all remaining fields at this level are 
+#    ignored. The pipe field is an array, with each array item containing an 
+#    execution item. The order of execution items within "pipe" are piped in 
+#    order of appearance. STDOUT is piped from one execution command to the
+#    next. Thus, within pipe execution items, the "stdout" field is ignored. 
+#    Nested "pipe" fields are also ignored, preventing recursive piping. 
+# 3. type: (Optional) Valid values are 'shell', 'singularity', and 'docker'. If
+#    omiitted, the default value is 'shell'. This specifies the type of
+#    execution.
+# 4. run: Command to run. If type is singularity or docker, this is the command
+#    passed to the container executor after the container image is specified.
+# 5. image: If type is singularity or docker, this is the path, url , or name
+#    of the container.
+# 6. args: Optional arguments to be passed to the command. This is expected to
+#    be an array, which each array item defined as follows:
+#    1. flag: (Optional) If present, the argument is pre-pended with this
+#       string.
+#    2. mount: (Optional) If present, and type is singularity or docker, the
+#       value should be the bash variable name representing one of the inputs
+#       or file/directory parameters. For example, an input of "filename"
+#       should be represented as "${FILENAME}". The file or directory's
+#       containing directory is mounted to the container using the option:
+#       "${FILENAME_DIR}:/dataX". If "value" is not specified, a value of 
+#       "/dataX/${FILENAME_BASE}" is passed as an argument to the image. If
+#       "value" is present, the value passed as an argument as follows:
+#       "/dataX/[value]"
+#    3. value: (Optional) If present, used as the argument value. If "mount" is
+#       also present, see above rules for "mount".
+#    Note that all "args" values are optional, and if none are specified, the
+#    argument is ignored.
+# 7. stdout: (Optional) If present, the command's standard output will be piped
+#    here.
+# 8. stderr: (Optional) If present, the command's standard error will be piped
+#    here.
+#
+# All bash/shell commands in the "exec_methods" section has access to a number
+# of pre-defined variables, including:
+#
+#    ${SINGULARITY}: set to "yes" or "no" depending on whether the
+#       "singularity" binary was detected.
+#    ${DOCKER}: set to "yes" or "no" depending on whether the "docker" binary
+#       was detected.
+#    ${SCRIPT_DIR}: directory of the wrapper script, which may not be the 
+#       current directory. This depends on the execution environment.
+#    ${VARNAME}: One for each input/parameter, set to value of the input/
+#       parameter.
+#    ${VARNAME_FULL}: if input/parameter is a file or directory, this is the 
+#       full path of the input/parameter. 
+#    ${VARNAME_DIR}: if input/parameter is a file or directory, this is the 
+#       parent directory of the input/parameter.
+#    ${VARNAME_BASE}: if input/parameter is a file or directory, this is the
+#       basename of the input/parameter.
+#    *Any additional bash/shell variables defined in the "post" section of each
+#    input/parameter, or defined in the "pre_exec" section are also available.
+#
+#
+### Conditional Blocks ###
+#
+# Nestable condition blocks. Test conditions can be grouped with the following
+# section keywords:
+#
+# 1. all: All items in this section must be satisified (i.e., [a AND b .. ]).
+# 2. any: At least one item in this section must be satisfied
+#    (i.e., [a OR b .. ]).
+# 3. none: None of the items in this section must be satisified
+#    (i.e., NOT [a AND b ..]).
+#
+# These can be nested to any depth. Within these groups, test conditions can
+# include the following, and parameters are passed as values (if single
+# operand), or arrays (if two operands). Shell equivalent tests are shown
+# below:
+#
+# 1. defined:           -n value
+# 2. not_defined:       -z value
+# 3. str_equal:         value[0] = value[1]
+# 4. not_str_equal:     value[0] != value[1]
+# 5. equal:             value[0] -eq value[1]
+# 6. not_equal:         value[0] -ne value[1]
+# 7. less:              value[0] -lt value[1]
+# 8. greater:           value[0] -gt value[1]
+# 9. less_equal:        value[0] -le value[1]
+# 10. greater_equal:    value[0] -ge value[1]
+# 11. file_exist:       -f value
+# 12. not_file_exist:   ! -f value
+# 13. dir_exist:        -d value
+# 14. not_dir_exist:    ! -d value
+# 15. exist:            -e value
+# 16. not_exist:        ! -e value
+# 17. in_path:          command -v value >/dev/null 2>&1

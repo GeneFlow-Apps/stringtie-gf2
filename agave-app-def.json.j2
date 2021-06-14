@@ -1,0 +1,52 @@
+{
+  "name": "{{ agave.appsPrefix }}-stringtie-gf2",
+  "version": "2.1.6.01",
+  "label": "StringTie App",
+  "defaultNodeCount": 1,
+  "defaultMemoryPerNode": 1,
+  "defaultProcessorsPerNode": 1,
+  "executionType": "HPC",
+  "parallelism": "SERIAL",
+  "checkpointable": false,
+  "executionSystem": "{{ agave.executionSystem }}",
+  "deploymentPath": "{{ agave.appsDir }}/stringtie-gf2-2.1.6-01",
+  "deploymentSystem": "{{ agave.deploymentSystem }}",
+  "templatePath": "stringtie-gf2.sh",
+  "testPath": "test/test.sh",
+  "inputs": [
+    { "id": "bam",
+      "value": {
+        "required": true,
+        "default": ""
+      }
+    },
+    { "id": "gtf",
+      "value": {
+        "required": true,
+        "default": ""
+      }
+    }
+  ],
+  "parameters": [
+    { "id": "output",
+      "value": {
+        "required": true,
+        "type": "string"
+      }
+    },
+    { "id": "exec_method",
+      "value": {
+        "required": false,
+        "default": "auto",
+        "type": "string"
+      }
+    },
+    { "id": "exec_init",
+      "value": {
+        "required": false,
+        "default": ":",
+        "type": "string"
+      }
+    }
+  ]
+}
